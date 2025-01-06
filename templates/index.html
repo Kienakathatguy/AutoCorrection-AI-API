@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro&display=swap" rel="stylesheet">
+    <title>Mineyes</title>
+    <style>
+        body {
+            font-family: 'Be Vietnam Pro', sans-serif;
+            text-align: center;
+            margin: 0px;
+            padding: 0px;
+        }
+
+        textarea {
+            padding: 10px;
+            font-size: 16px;
+            margin: 10px;
+            width: 55%;
+            border-radius: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+
+        p {
+            font-size: 15px;
+        }
+
+        li {
+            text-decoration: none;
+        }
+
+        .notification {
+            color: blue;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+        .error {
+            color: red;
+            font-size: 16px;
+        }
+
+        #navbar {
+            padding: 10px;
+            margin-top: 20px;
+            
+        }
+        
+        #navbar p{
+            text-align: center;
+            font-size: 25px;
+            font-weight: bold;
+        }
+
+        #navbar img{
+            float: left;
+        }
+
+        #description {
+            font-style: italic;
+            display: flex;
+            align-items: flex-start;
+            width: 20%;
+            padding: 20px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="navbar"> 
+        <p>Home</p>
+        <img src="small_logo.png" alt="Small-logo">
+    </div>
+    <div style="background-color: yellow; width: auto; height: 600px; padding: 0px; margin: 0px">
+        <p id="description">Website helps visually impaired people input and copy text information, supported by AI.</p>
+        <!-- Combined Textarea -->
+        <textarea id="combined_input" placeholder="Start typing..." rows="8" onkeydown="handleInput(event)"></textarea>
+
+        <!-- Notification Section -->
+        <div id="notification" class="notification"></div>
+
+        <script>
+            // Initial mode: autocorrection
+            let currentMode = "autocorrection";
+
+            // Notify the user of the current mode
+            function notifyModeChange(mode) {
+                const notificationElement = document.getElementById('notification');
+                const message = `Mode switched to: ${mode.toUpperCase()} mode.`;
+                notificationElement.innerText = message;
+                alert(message); // Screen reader announcement
+            }
+
+            // Toggle between modes using Ctrl + M
+            document.addEventListener("keydown", (event) => {
+                if (event.ctrlKey && event.key.toLowerCase() === "m") {
+                    currentMode = currentMode === "autocorrection" ? "command" : "autocorrection";
+                    notifyModeChange(currentMode);
+                }
+
+                // Trigger voiceover using Ctrl + N
+                if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "l") {
+                    voiceover();
+                }
+            });
+
+            // Handle input based on the current mode
+            function handleInput(event) {
+                const inputText = document.getElementById('combined_input').value;
+
+                if (currentMode === "autocorrection") {
+                    // Autocorrect when spacebar is pressed
+                    if (event.key === " ") {
+                        fetch('/realtime_autocorrect', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                text: inputText,
+                                event_type: "space"
+                            })
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                // Correct the text and add a space
+                                document.getElementById('combined_input').value = data.corrected_text + " ";
+                            })
+                            .catch(error => console.error('Error:', error));
+                    }
+                } else if (currentMode === "command" && event.key === "Enter") {
+                    // Process command when Enter key is pressed
+                    fetch('/process_command', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: `user_input=${encodeURIComponent(inputText.trim())}`
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            const notificationElement = document.getElementById('notification');
+                            notificationElement.innerText = data.message;
+
+                            // Announce the result for screen readers
+                            alert(data.message);
+                        })
+                        .catch(error => {
+                            const errorMessage = "There was an error processing your request. Please try again.";
+                            document.getElementById('notification').innerText = errorMessage;
+                            console.error('Error:', error);
+                        });
+
+                    // Clear the input after processing
+                    document.getElementById('combined_input').value = "";
+                }
+            }
+
+            // Voiceover function to read the text aloud
+            function voiceover() {
+                const textToRead = document.getElementById('combined_input').value.trim();
+                if (!textToRead) {
+                    alert("Nothing to read! The input box is empty.");
+                    return;
+                }
+
+                // Use the Web Speech API for text-to-speech
+                const utterance = new SpeechSynthesisUtterance(textToRead);
+                utterance.lang = "en-US"; // Set the language to English (US)
+                utterance.rate = 1; // Normal speech rate
+                utterance.pitch = 1; // Normal pitch
+                utterance.volume = 1; // Full volume
+                window.speechSynthesis.speak(utterance);
+            }
+        </script>
+    </div>
+
+</body>
+
+</html>

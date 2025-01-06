@@ -1,53 +1,76 @@
-import streamlit as st
+from flask import Flask, request, jsonify, render_template
 from symspellpy.symspellpy import SymSpell, Verbosity
 import os
+import re
+import webbrowser
+
+app = Flask(__name__)
 
 # Initialize SymSpell
-@st.cache_resource
 def initialize_symspell():
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
     dictionary_path = "Resources/frequency_dictionary_en_82_765.txt"
     if os.path.exists(dictionary_path):
         sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
     else:
-        st.error("Dictionary file not found. Please check the path.")
+        raise FileNotFoundError(f"Dictionary file not found at {dictionary_path}")
     return sym_spell
 
-# Correct only the last word in the text
+sym_spell = initialize_symspell()
+
+# Correct the last word in the text
 def autocorrect_last_word(sym_spell, input_text):
     if not input_text.strip():
-        return input_text  # Return if input is empty or only spaces
+        return input_text
 
+    # Split text into words, correct only the last word
     words = input_text.split()
     last_word = words[-1] if words else ""
     suggestions = sym_spell.lookup(last_word, Verbosity.CLOSEST, max_edit_distance=2)
     if suggestions:
-        words[-1] = suggestions[0].term  # Replace the last word with its correction
+        words[-1] = suggestions[0].term
     return " ".join(words)
 
-# Handle key release and autocorrection
-def autocorrect_on_input(sym_spell, user_input):
-    if user_input.strip():
-        corrected_text = autocorrect_last_word(sym_spell, user_input)
-    else:
-        corrected_text = user_input
-    return corrected_text
+# Backend route for real-time autocorrection
+@app.route('/realtime_autocorrect', methods=['POST'])
+def realtime_autocorrect():
+    data = request.json
+    input_text = data.get("text", "")
+    event_type = data.get("event_type", "")
 
-# Streamlit app
-def main():
-    st.title("Realtime Sentence Autocorrection")
-    st.write("Type your text below, and we'll autocorrect it in real-time!")
+    if event_type == "space":
+        corrected_text = autocorrect_last_word(sym_spell, input_text)
+        return jsonify({"corrected_text": corrected_text})
 
-    # Load SymSpell
-    sym_spell = initialize_symspell()
+    return jsonify({"corrected_text": input_text})
 
-    # Text Input Field
-    user_input = st.text_area("Enter text:", value="", height=200, key="input_text")
+# Backend route to handle command execution
+@app.route('/process_command', methods=['POST'])
+def process_command():
+    data = request.form.get("user_input", "").strip()
 
-    # Process input and show autocorrected text
-    corrected_text = autocorrect_on_input(sym_spell, user_input)
-    st.subheader("Corrected Text")
-    st.text_area("Output:", value=corrected_text, height=200, disabled=True)
+    # Check for YouTube search command
+    youtube_match = re.match(r"youtube search\s*(.*)", data, re.IGNORECASE)
+    if youtube_match:
+        query = youtube_match.group(1)
+        youtube_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+        webbrowser.open(youtube_url)
+        return jsonify({"status": "success", "message": f"Searching YouTube for: {query}"})
+
+    # Check for Google search command
+    google_match = re.match(r"google search\s*(.*)", data, re.IGNORECASE)
+    if google_match:
+        query = google_match.group(1)
+        google_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        webbrowser.open(google_url)
+        return jsonify({"status": "success", "message": f"Searching Google for: {query}"})
+
+    return jsonify({"status": "error", "message": "Invalid command"})
+
+# Home route to render the HTML page
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 if __name__ == "__main__":
-    main()
+    app.run(debug=True)
