@@ -73,4 +73,7 @@ def index():
     return render_template('index.html')
 
 if __name__ == "__main__":
-    app.run(debug=True)
+     # Use `PORT` environment variable if set; default to 5000 for local development
+    port = os.environ.get("PORT", 5000)
+    # Bind to `0.0.0.0` to make it accessible on Render
+    app.run(debug=False, host="0.0.0.0", port=int(port))
