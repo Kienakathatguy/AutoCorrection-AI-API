@@ -52,21 +52,24 @@
             margin-top: 20px;
             display: flex;
             justify-content: space-between;
-            align-items: center; /* Center vertically if you want */
+            align-items: center;
+            /* Center vertically if you want */
         }
-        
-        #navbar p{
+
+        #navbar p {
             font-size: 25px;
             font-weight: bold;
             position: absolute;
             left: 50%;
-            transform: translateX(-50%); /* Center the "Home" text horizontally */
+            transform: translateX(-50%);
+            /* Center the "Home" text horizontally */
             margin: 0;
         }
 
-        #navbar img{
+        #navbar img {
             float: left;
-            flex-shrink: 0; /* Prevent the logo from shrinking */
+            flex-shrink: 0;
+            /* Prevent the logo from shrinking */
         }
 
         #description {
@@ -79,41 +82,55 @@
         }
 
         .tutorial {
-            text-align: left; /* Align text to the left */
-            margin-left: 15%; /* Start approximately 30% from the left of the page */
+            text-align: left;
+            /* Align text to the left */
+            margin-left: 15%;
+            /* Start approximately 30% from the left of the page */
             font-size: 15px;
-            margin-top: 10px; /* Add spacing between tutorial items */
+            margin-top: 10px;
+            /* Add spacing between tutorial items */
             position: relative;
         }
 
         .tutorial::before {
-            content: "•"; /* Unicode character for a bullet point */
-            color: black; /* Bullet color */
-            font-size: 16px; /* Adjust size to match text */
-            margin-right: 8px; /* Space between bullet and text */
+            content: "•";
+            /* Unicode character for a bullet point */
+            color: black;
+            /* Bullet color */
+            font-size: 16px;
+            /* Adjust size to match text */
+            margin-right: 8px;
+            /* Space between bullet and text */
             position: absolute;
-            left: -15px; /* Align bullet with text */
+            left: -15px;
+            /* Align bullet with text */
             top: 0;
         }
     </style>
 </head>
 
 <body>
-    <div id="navbar"> 
-        <img src="{{ url_for('static', filename='images/small_logo.jpg') }}" alt="Small-logo" style="width: auto; height: 50px">
+    <div id="navbar">
+        <img src="{{ url_for('static', filename='images/small_logo.jpg') }}" alt="Small-logo"
+            style="width: auto; height: 50px">
         <p>Home</p>
-        
+
     </div>
     <div style="background-color: yellow; width: auto; height: 700px; padding: 0px; margin: 0px">
         <p id="description">Website helps visually impaired people input and copy text information, supported by AI.</p>
-        <img src="{{ url_for('static', filename='images/big_logo.png') }}" alt="Big-Logo" style="width: auto; height: 80px; display: block; margin: 0 auto; margin-bottom: 25px;">
+        <img src="{{ url_for('static', filename='images/big_logo.png') }}" alt="Big-Logo"
+            style="width: auto; height: 80px; display: block; margin: 0 auto; margin-bottom: 25px;">
         <!-- Combined Textarea -->
         <textarea id="combined_input" placeholder="Start typing..." rows="8" onkeydown="handleInput(event)"></textarea>
 
-        <div style="font-size: 15px; font-weight: bold; text-align: center; margin-top: 90px; margin-bottom: 30px;">HOW TO USE MINEYES</div>
-        <div class="tutorial"><b>AutoCorrection Textbox:</b> Type text and it will <b>automatically correct</b> the last word.</div>
-        <div class="tutorial"><b>Command Search:</b> Type commands like <b>"YouTube search"</b> or <b>"Google search"</b> followed by your keywords to perform searches.</div>
-        <div class="tutorial"><b>Switching Between Features:</b> Press <b>Ctrl + M</b> to toggle between autocorrection and voiceover modes.</div>
+        <div style="font-size: 15px; font-weight: bold; text-align: center; margin-top: 90px; margin-bottom: 30px;">HOW
+            TO USE MINEYES</div>
+        <div class="tutorial"><b>AutoCorrection Textbox:</b> Type text and it will <b>automatically correct</b> the last
+            word.</div>
+        <div class="tutorial"><b>Command Search:</b> Type commands like <b>"YouTube search"</b> or <b>"Google
+                search"</b> followed by your keywords to perform searches.</div>
+        <div class="tutorial"><b>Switching Between Features:</b> Press <b>Ctrl + M</b> to toggle between autocorrection
+            and voiceover modes.</div>
         <div class="tutorial"><b>VoiceOver:</b> Press <b>Ctrl + Shift + L</b> to hear the last typed text.</div>
 
         <!-- Notification Section -->
@@ -148,28 +165,7 @@
             function handleInput(event) {
                 const inputText = document.getElementById('combined_input').value;
 
-                if (currentMode === "autocorrection") {
-                    // Autocorrect when spacebar is pressed
-                    if (event.key === " ") {
-                        fetch('/realtime_autocorrect', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                text: inputText,
-                                event_type: "space"
-                            })
-                        })
-                            .then(response => response.json())
-                            .then(data => {
-                                // Correct the text and add a space
-                                document.getElementById('combined_input').value = data.corrected_text + " ";
-                            })
-                            .catch(error => console.error('Error:', error));
-                    }
-                } else if (currentMode === "command" && event.key === "Enter") {
-                    // Process command when Enter key is pressed
+                if (currentMode === "command" && event.key === "Enter") {
                     fetch('/process_command', {
                         method: 'POST',
                         headers: {
@@ -179,11 +175,13 @@
                     })
                         .then(response => response.json())
                         .then(data => {
-                            const notificationElement = document.getElementById('notification');
-                            notificationElement.innerText = data.message;
-
-                            // Announce the result for screen readers
-                            alert(data.message);
+                            if (data.status === "success" && data.redirect_url) {
+                                window.open(data.redirect_url, '_blank'); // Open the URL in a new tab
+                            } else {
+                                const notificationElement = document.getElementById('notification');
+                                notificationElement.innerText = data.message;
+                                alert(data.message); // Announce the error message for accessibility
+                            }
                         })
                         .catch(error => {
                             const errorMessage = "There was an error processing your request. Please try again.";

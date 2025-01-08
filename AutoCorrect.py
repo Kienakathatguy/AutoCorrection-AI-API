@@ -54,16 +54,14 @@ def process_command():
     if youtube_match:
         query = youtube_match.group(1)
         youtube_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
-        webbrowser.open(youtube_url)
-        return jsonify({"status": "success", "message": f"Searching YouTube for: {query}"})
+        return jsonify({"status": "success", "redirect_url": youtube_url})
 
     # Check for Google search command
     google_match = re.match(r"google search\s*(.*)", data, re.IGNORECASE)
     if google_match:
         query = google_match.group(1)
         google_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-        webbrowser.open(google_url)
-        return jsonify({"status": "success", "message": f"Searching Google for: {query}"})
+        return jsonify({"status": "success", "redirect_url": google_url})
 
     return jsonify({"status": "error", "message": "Invalid command"})
 
