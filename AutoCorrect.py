@@ -11,7 +11,7 @@ app = Flask(__name__)
 # Initialize SymSpell
 def initialize_symspell():
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-    dictionary_path = "Resources/frequency_dictionary_en_82_765.txt"
+    dictionary_path = "Resources/frequency_dictionary_en.txt"
     if os.path.exists(dictionary_path):
         sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
     else:
