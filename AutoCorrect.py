@@ -5,17 +5,32 @@ import re
 
 app = Flask(__name__)
 
-# Initialize SymSpell for Vietnamese
+# Initialize SymSpell for a given language using a wordlist (or frequency dictionary)
 def initialize_symspell(language="en"):
     sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
+    
+    # Try loading from a frequency dictionary if available
     dictionary_path = f"Resources/frequency_dictionary_{language}.txt"
+    
     if os.path.exists(dictionary_path):
+        print(f"Loading frequency dictionary for {language}...")
         sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
     else:
-        raise FileNotFoundError(f"Dictionary file not found at {dictionary_path}")
+        # If no frequency dictionary, fall back to wordlist
+        wordlist_path = f"Resources/{language}_wordlist.txt"
+        if os.path.exists(wordlist_path):
+            print(f"Loading wordlist for {language}...")
+            with open(wordlist_path, 'r', encoding='utf-8') as file:
+                for line in file:
+                    word = line.strip()
+                    if word:
+                        sym_spell.create_dictionary_entry(word, 1)  # Assign frequency of 1 to each word
+        else:
+            raise FileNotFoundError(f"Neither dictionary nor wordlist found for {language}")
+    
     return sym_spell
 
-# Load both English and Vietnamese dictionaries
+# Load both English and Vietnamese dictionaries/wordlists
 sym_spell_dict = {
     "en": initialize_symspell("en"),
     "vi": initialize_symspell("vi")
