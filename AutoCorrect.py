@@ -58,14 +58,12 @@ def realtime_autocorrect():
 def process_command():
     data = request.form.get("user_input", "").strip()
 
-
     # Check for YouTube search command
     youtube_match = re.match(r"youtube search\s*(.*)", data, re.IGNORECASE)
     if youtube_match:
         query = youtube_match.group(1)
         youtube_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
         return jsonify({"status": "success", "redirect_url": youtube_url})
-
 
     # Check for Google search command
     google_match = re.match(r"google search\s*(.*)", data, re.IGNORECASE)
@@ -74,6 +72,17 @@ def process_command():
         google_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
         return jsonify({"status": "success", "redirect_url": google_url})
 
+     # Check for Gmail compose command
+    mail_match = re.match(r"mail\s+([\w.%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,})", data, re.IGNORECASE)
+    if mail_match:
+        email_address = mail_match.group(1)
+        gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={email_address}"
+        return jsonify({"status": "success", "redirect_url": gmail_url})
+
+    # Check for Facebook command
+    if data.lower() == "facebook":
+        facebook_url = "https://www.facebook.com"
+        return jsonify({"status": "success", "redirect_url": facebook_url})
 
     return jsonify({"status": "error", "message": "Invalid command"})
 
