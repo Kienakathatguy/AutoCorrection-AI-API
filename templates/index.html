@@ -43,7 +43,7 @@
 
 
         .notification {
-            color: blue;
+            color: black;
             font-size: 16px;
             margin-top: 20px;
         }
@@ -98,11 +98,12 @@
             justify-content: space-around; 
             gap: 15px; 
             margin: 0 auto; 
-            width: 90%; 
+            width: 90%;
+            margin-bottom: 100px; 
         }
 
         .tutorial {
-            flex: 0 0 22%; 
+            flex: 0 0 20%; 
             box-sizing: border-box; /* Ensure padding/borders don't affect width */
             text-align: left;
             font-size: 15px;
@@ -137,30 +138,16 @@
 
 
     </div>
-    <div style="background-color: #fdc300; width: auto; height: 800px; padding: 0px; margin: 0px">
+    <div style="background-color: #fdc300; width: auto; height: 550px; padding: 0px; margin: 0px">
         <p id="description">Website helps visually impaired people input and copy text information, supported by AI.</p>
         <img src="{{ url_for('static', filename='images/big_logo.png') }}" alt="Big-Logo"
-            style="width: auto; height: 80px; display: block; margin: 0 auto; margin-bottom: 25px;">
+            style="width: auto; height: 80px; display: block; margin: 0 auto; margin-bottom: 40px;">
         <!-- Combined Textarea -->
         <textarea id="combined_input" placeholder="Start typing..." rows="8" onkeydown="handleInput(event)"></textarea>
 
-    
-        <div style="font-size: 15px; font-weight: bold; text-align: center; margin-top: 200px; margin-bottom: 30px;">HOW
-            TO USE MINEYES</div>
-
-    <div class="tutorial-container">
-        <div class="tutorial"><b>AutoCorrection Textbox:</b> Type text and it will <b>automatically correct</b> the last
-            word.</div>
-        <div class="tutorial"><b>Command Search:</b> Type commands like <b>"YouTube search"</b> or <b>"Google
-                search"</b> followed by your keywords to perform searches.</div>
-        <div class="tutorial"><b>Switching Between Features:</b> Press <b>Ctrl + M</b> to toggle between autocorrection
-            and voiceover modes.</div>
-        <div class="tutorial"><b>VoiceOver:</b> Press <b>Ctrl + Shift + L</b> to hear the last typed text.</div>
-    </div>
-
         <!-- Notification Section -->
         <div id="notification" class="notification"></div>
-
+    
 
         <script>
             // Initial mode: autocorrection
@@ -266,6 +253,19 @@
             }
         </script>
     </div>
+
+    <div style="font-size: 25px; font-weight: bold; text-align: center; margin-top: 20px; margin-bottom: 30px;">HOW
+        TO USE MINEYES</div>
+
+<div class="tutorial-container">
+    <div class="tutorial"><b>AutoCorrection Textbox:</b> Type text and it will <b>automatically correct</b> the last
+        word.</div>
+    <div class="tutorial"><b>Command Search:</b> Type commands like <b>"YouTube search"</b> or <b>"Google
+            search"</b> followed by your keywords to perform searches.</div>
+    <div class="tutorial"><b>Switching Between Features:</b> Press <b>Ctrl + M</b> to toggle between autocorrection
+        and voiceover modes.</div>
+    <div class="tutorial"><b>VoiceOver:</b> Press <b>Ctrl + Shift + L</b> to hear the last typed text.</div>
+</div>
 
     <div style="display: flex; flex-direction: column; align-items: flex-start; 
             justify-content: center; padding: 10px; background-color: #f0f0f0; 
