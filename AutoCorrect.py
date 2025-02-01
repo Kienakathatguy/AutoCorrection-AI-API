@@ -1,12 +1,11 @@
 from flask import Flask, request, jsonify, render_template
-from symspellpy.symspellpy import SymSpell, Verbosity
 import os
-import re
-import webbrowser
-
+import requests
+from symspellpy.symspellpy import SymSpell, Verbosity
+from flask_cors import CORS
 
 app = Flask(__name__)
-
+CORS(app)
 
 # Initialize SymSpell
 def initialize_symspell():
@@ -18,17 +17,13 @@ def initialize_symspell():
         raise FileNotFoundError(f"Dictionary file not found at {dictionary_path}")
     return sym_spell
 
-
 sym_spell = initialize_symspell()
-
 
 # Correct the last word in the text
 def autocorrect_last_word(sym_spell, input_text):
     if not input_text.strip():
         return input_text
 
-
-    # Split text into words, correct only the last word
     words = input_text.split()
     last_word = words[-1] if words else ""
     suggestions = sym_spell.lookup(last_word, Verbosity.CLOSEST, max_edit_distance=2)
@@ -36,65 +31,60 @@ def autocorrect_last_word(sym_spell, input_text):
         words[-1] = suggestions[0].term
     return " ".join(words)
 
-
 # Backend route for real-time autocorrection
 @app.route('/realtime_autocorrect', methods=['POST'])
 def realtime_autocorrect():
-    data = request.json
+    data = request.json  # Request data coming from frontend
     input_text = data.get("text", "")
-    event_type = data.get("event_type", "")
+    corrected_text = autocorrect_last_word(sym_spell, input_text)
+    return jsonify({"corrected_text": corrected_text})
 
+# Backend route to fetch weather data
+@app.route('/weather', methods=['GET'])
+def fetch_weather():
+    location = request.args.get("location")
+    if not location:
+        return jsonify({"error": "Location is required"}), 400
 
-    if event_type == "space":
-        corrected_text = autocorrect_last_word(sym_spell, input_text)
-        return jsonify({"corrected_text": corrected_text})
+    url = f"https://wttr.in/{location}?format=%C"
+    
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        return jsonify({"weather": response.text.strip()})
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Failed to fetch weather: {str(e)}"}), 500
 
+# New backend route to handle "compose mail" command
+@app.route('/compose_mail', methods=['POST'])
+def compose_mail():
+    data = request.json
 
-    return jsonify({"corrected_text": input_text})
+    # Extract the fields
+    recipient = data.get("to", "").strip()
+    subject = data.get("subject", "").strip()
+    body = data.get("body", "").strip()
 
+    # Validate the fields
+    if not recipient:
+        return jsonify({"error": "Recipient (to) is required"}), 400
+    if not subject:
+        return jsonify({"error": "Subject is required"}), 400
+    if not body:
+        return jsonify({"error": "Body is required"}), 400
 
-# Backend route to handle command execution
-@app.route('/process_command', methods=['POST'])
-def process_command():
-    data = request.form.get("user_input", "").strip()
-
-    # Check for YouTube search command
-    youtube_match = re.match(r"youtube search\s*(.*)", data, re.IGNORECASE)
-    if youtube_match:
-        query = youtube_match.group(1)
-        youtube_url = f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
-        return jsonify({"status": "success", "redirect_url": youtube_url})
-
-    # Check for Google search command
-    google_match = re.match(r"google search\s*(.*)", data, re.IGNORECASE)
-    if google_match:
-        query = google_match.group(1)
-        google_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-        return jsonify({"status": "success", "redirect_url": google_url})
-
-     # Check for Gmail compose command
-    mail_match = re.match(r"mail\s+([\w.%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,})", data, re.IGNORECASE)
-    if mail_match:
-        email_address = mail_match.group(1)
-        gmail_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={email_address}"
-        return jsonify({"status": "success", "redirect_url": gmail_url})
-
-    # Check for Facebook command
-    if data.lower() == "facebook":
-        facebook_url = "https://www.facebook.com"
-        return jsonify({"status": "success", "redirect_url": facebook_url})
-
-    return jsonify({"status": "error", "message": "Invalid command"})
-
+    # Construct the Gmail compose URL
+    gmail_url = (
+        f"https://mail.google.com/mail/?view=cm&fs=1&to={recipient}"
+        f"&su={subject}&body={body}"
+    )
+    return jsonify({"gmail_url": gmail_url})
 
 # Home route to render the HTML page
 @app.route('/')
 def index():
     return render_template('index.html')
 
-
 if __name__ == "__main__":
-     # Use `PORT` environment variable if set; default to 5000 for local development
     port = os.environ.get("PORT", 5000)
-    # Bind to `0.0.0.0` to make it accessible on Render
     app.run(debug=False, host="0.0.0.0", port=int(port))
