@@ -53,7 +53,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            /* Center vertically if you want */
         }
 
         #navbar p {
@@ -62,14 +61,12 @@
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
-            /* Center the "Home" text horizontally */
             margin: 0;
         }
 
         #navbar img {
             float: left;
             flex-shrink: 0;
-            /* Prevent the logo from shrinking */
         }
 
         #description {
@@ -93,7 +90,7 @@
 
         .tutorial {
             flex: 0 0 20%;
-            box-sizing: border-box; /* Ensure padding/borders don't affect width */
+            box-sizing: border-box;
             text-align: left;
             font-size: 15px;
             margin: 10px 0;
@@ -103,16 +100,11 @@
 
         .tutorial::before {
             content: "•";
-            /* Unicode character for a bullet point */
             color: black;
-            /* Bullet color */
             font-size: 16px;
-            /* Adjust size to match text */
             margin-right: 8px;
-            /* Space between bullet and text */
             position: absolute;
             left: -15px;
-            /* Align bullet with text */
             top: 0;
         }
     </style>
@@ -120,12 +112,15 @@
 
 <body>
     <div id="navbar">
-        <img src="{{ url_for('static', filename='images/small_logo_2.jpg') }}" alt="Small-logo" style="width: auto; height: 40px">
+        <img src="{{ url_for('static', filename='images/small_logo_2.jpg') }}" alt="Small-logo"
+            style="width: auto; height: 40px">
         <p>Home</p>
     </div>
     <div style="background-color: #fdc300; width: auto; height: 550px; padding: 0px; margin: 0px">
         <p id="description">Website helps visually impaired people input and copy text information, supported by AI.</p>
-        <img src="{{ url_for('static', filename='images/big_logo.png') }}" alt="Big-Logo" style="width: auto; height: 80px; display: block; margin: 0 auto; margin-bottom: 40px;">
+        <img src="{{ url_for('static', filename='images/big_logo.png') }}" alt="Big-Logo"
+            style="width: auto; height: 80px; display: block; margin: 0 auto; margin-bottom: 40px;">
+
         <!-- Combined Textarea -->
         <textarea id="combined_input" placeholder="Start typing..." rows="8" onkeydown="handleInput(event)"></textarea>
 
@@ -133,65 +128,88 @@
         <div id="notification" class="notification"></div>
 
         <script>
-            // Initial mode: autocorrection
-            let currentMode = "autocorrection";
-        
-            // Notify the user of the current mode
+            let currentMode = "autocorrection"; // Default mode
+
             function notifyModeChange(mode) {
                 const notificationElement = document.getElementById('notification');
                 const message = `Mode switched to: ${mode.toUpperCase()} mode.`;
                 notificationElement.innerText = message;
                 alert(message); // Screen reader announcement
             }
-        
-            // Toggle between modes using Ctrl + M
+
             document.addEventListener("keydown", (event) => {
                 if (event.ctrlKey && event.key.toLowerCase() === "m") {
-                    event.preventDefault();  // Prevent default action (e.g., browser refresh)
+                    event.preventDefault();
                     currentMode = currentMode === "autocorrection" ? "command" : "autocorrection";
                     notifyModeChange(currentMode);
                 }
-        
-                // Trigger voiceover using Ctrl + Shift + L
+
                 if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "l") {
                     voiceover();
                 }
             });
-        
+
+            let debounceTimeout;
+
             // Handle input based on the current mode
             function handleInput(event) {
                 const inputText = document.getElementById('combined_input').value;
-        
+
                 // Handle autocorrection when the mode is "autocorrection" and spacebar is pressed
                 if (currentMode === "autocorrection" && event.key === " ") {
-                    fetch('/realtime_autocorrect', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            text: inputText,
-                            event_type: "space"
-                        })
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            document.getElementById('combined_input').value = data.corrected_text + " "; // Update with corrected text
-                        })
-                        .catch(error => console.error('Error:', error));
+                    event.preventDefault();  // Prevent the default space behavior
+
+                    // Manually add a space without losing existing text
+                    const updatedText = inputText + " "; // Append a space at the end
+                    document.getElementById('combined_input').value = updatedText; // Update textarea with space
+
+                    // Clear the previous timeout (if any) to reset the debounce
+                    clearTimeout(debounceTimeout);
+
+                    // Set a new debounce timeout with a shorter delay (150ms)
+                    debounceTimeout = setTimeout(() => {
+                        fetchLanguageToolCorrection(updatedText);  // Trigger LanguageTool API call after a brief delay
+                    }, 150); // Reduce delay to 150ms for faster correction
                 }
-        
+
+                // Handle commands when Ctrl + Enter is pressed
                 if (currentMode === "command" && event.ctrlKey && event.key === "Enter") {
                     event.preventDefault(); // Prevent the default action (like opening in a new tab)
                     handleCommand(inputText.trim());
                 }
             }
-        
-            // Function to handle commands like "youtube search", "google search", etc.
-            function handleCommand(inputText) {
-    let command = inputText.toLowerCase();
 
-    const searchPlatforms = [
+            // Function to fetch corrections using LanguageTool API
+            function fetchLanguageToolCorrection(text) {
+                fetch('https://api.languagetool.org/v2/check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        text: text,
+                        language: 'en-US',
+                    }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        let correctedText = text;
+                        if (data.matches && data.matches.length > 0) {
+                            // Apply the first suggestion
+                            correctedText = data.matches.reduce((acc, match) => {
+                                return acc.replace(match.context.text.slice(match.context.offset, match.context.offset + match.context.length), match.replacements[0].value);
+                            }, text);
+                        }
+                        // Update the textarea with the corrected text
+                        // Ensure that the input field text is updated without deleting anything unexpectedly
+                        document.getElementById('combined_input').value = correctedText;
+                    })
+                    .catch(error => console.error('Error:', error));
+            }
+
+            function handleCommand(inputText) {
+                let command = inputText.toLowerCase();
+                const searchPlatforms = [
                     { prefix: "youtube search", url: "https://www.youtube.com/results?search_query=" },
                     { prefix: "google search", url: "https://www.google.com/search?q=" },
                     { prefix: "instagram search", url: "https://www.instagram.com/explore/tags/" },
@@ -199,21 +217,18 @@
                     { prefix: "reddit search", url: "https://www.reddit.com/search/?q=" }
                 ];
 
-                // Loop through search platforms and handle the search request
                 for (let platform of searchPlatforms) {
                     if (command.startsWith(platform.prefix)) {
                         let query = command.replace(platform.prefix, "").trim();
                         if (query) {
-                            const searchTab = window.open(`${platform.url}${encodeURIComponent(query)}`, '_blank');
-                            searchTab.focus(); // Focus on the new tab
+                            window.open(`${platform.url}${encodeURIComponent(query)}`, '_blank').focus();
                         } else {
                             alert(`Please provide a query for ${platform.prefix}.`);
                         }
-                        return; // Stop once a matching search is found
+                        return;
                     }
                 }
 
-                // Open social media links
                 const socialMediaPlatforms = [
                     { name: "facebook", url: "https://www.facebook.com" },
                     { name: "instagram", url: "https://www.instagram.com" },
@@ -223,129 +238,110 @@
 
                 for (let platform of socialMediaPlatforms) {
                     if (command === platform.name) {
-                        const socialTab = window.open(platform.url, '_blank');
-                        socialTab.focus(); // Focus on the new tab
+                        window.open(platform.url, '_blank').focus();
                         return;
                     }
                 }
 
-    if (command.startsWith("weather")) {
-        let location = command.replace("weather", "").trim();
-        if (location) {
-            fetchWeather(location); // Fetch weather for the location
-        } else {
-            alert("Please provide a location for the weather.");
-        }
-    } else if (command === "time") {
-        fetchTime(); // Fetch and read the current time
-    } else if (command.startsWith("mail")) {
-        let email = command.replace("mail", "").trim();
-        const mailTab = window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`, '_blank');
-        mailTab.focus(); // Focus on the new tab
-    } else if (command.startsWith("compose mail")) {
-        // Parse "compose mail" command with separate lines for recipient, subject, and body
-        const lines = inputText.split("\n"); // Split input into lines
-        const recipientLine = lines.find(line => line.startsWith("to:"));
-        const subjectLine = lines.find(line => line.startsWith("subject:"));
-        const bodyLine = lines.find(line => line.startsWith("body:"));
+                if (command.startsWith("weather")) {
+                    let location = command.replace("weather", "").trim();
+                    if (location) fetchWeather(location);
+                    else alert("Please provide a location for the weather.");
+                } else if (command === "time") {
+                    fetchTime();
+                } else if (command.startsWith("mail")) {
+                    let email = command.replace("mail", "").trim();
+                    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`, '_blank').focus();
+                } else if (command.startsWith("compose mail")) {
+                    handleComposeMail(inputText);
+                } else {
+                    alert("Unknown command. Please try again.");
+                }
 
-        if (recipientLine && subjectLine && bodyLine) {
-            const recipient = recipientLine.replace("to:", "").trim();
-            const subject = subjectLine.replace("subject:", "").trim();
-            const body = bodyLine.replace("body:", "").trim();
-
-            if (!recipient) {
-                alert("Please provide a valid recipient email.");
-                return;
+                document.getElementById('combined_input').value = "";
             }
 
-            // Redirect to Gmail compose with prefilled fields
-            const gmailTab = window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank');
-            gmailTab.focus(); // Focus on the new tab
-        } else {
-            alert("Invalid format. Use:\ncompose mail\nto: <recipient>\nsubject: <subject>\nbody: <body>");
-        }
-    } else {
-        alert("Unknown command. Please try again.");
-    }
+            function handleComposeMail(inputText) {
+                const lines = inputText.split("\n");
+                const recipientLine = lines.find(line => line.startsWith("to:"));
+                const subjectLine = lines.find(line => line.startsWith("subject:"));
+                const bodyLine = lines.find(line => line.startsWith("body:"));
 
-    // Clear the input after processing
-    document.getElementById('combined_input').value = "";
-}
+                if (recipientLine && subjectLine && bodyLine) {
+                    const recipient = recipientLine.replace("to:", "").trim();
+                    const subject = subjectLine.replace("subject:", "").trim();
+                    const body = bodyLine.replace("body:", "").trim();
 
+                    if (!recipient) {
+                        alert("Please provide a valid recipient email.");
+                        return;
+                    }
 
-            // Function to fetch and read weather data aloud
-    // Function to fetch and read weather data aloud
-    function fetchWeather(location) {
-                const url = `/weather?location=${encodeURIComponent(location)}`;
-                fetch(url)
+                    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(recipient)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank').focus();
+                } else {
+                    alert("Invalid format. Use:\ncompose mail\nto: <recipient>\nsubject: <subject>\nbody: <body>");
+                }
+            }
+
+            function fetchWeather(location) {
+                fetch(`/weather?location=${encodeURIComponent(location)}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.weather) {
-                            const weatherText = `The current weather in ${location} is: ${data.weather}.`;
-                            readAloud(weatherText);
-                        } else if (data.error) {
-                            alert(`Error fetching weather data: ${data.error}`);
+                            readAloud(`The current weather in ${location} is: ${data.weather}.`);
                         } else {
                             alert("Could not fetch weather data. Please try again.");
                         }
                     })
                     .catch(error => {
-                        console.error("Error fetching weather data:", error);
-                        alert("Error fetching weather data.");
+                        console.error("Error fetching weather:", error);
+                        alert("Error fetching weather.");
                     });
             }
 
+            function fetchTime() {
+                let currentTime = new Date().toLocaleTimeString();
+                readAloud(`The current time is ${currentTime}.`);
+            }
 
-    // Function to fetch and read time aloud
-    function fetchTime() {
-        let currentTime = new Date().toLocaleTimeString();
-        console.log("Fetching time:", currentTime);  // Debugging
-        readAloud(`The current time is ${currentTime}.`);
-    }
-
-
-
-    function notifyUser(message) {
-        alert(message);
-        readAloud(message);
-    }
-
-
-        
-            // Voiceover function to read the text aloud
             function voiceover() {
-                const textToRead = document.getElementById('combined_input').value.trim();
+                let textToRead = document.getElementById('combined_input').value.trim();
                 if (!textToRead) {
                     alert("Nothing to read! The input box is empty.");
                     return;
                 }
-        
-                // Use the Web Speech API for text-to-speech
-                const utterance = new SpeechSynthesisUtterance(textToRead);
-                utterance.lang = "en-US"; // Set the language to English (US)
-                utterance.rate = 1; // Normal speech rate
-                utterance.pitch = 1; // Normal pitch
-                utterance.volume = 1; // Full volume
+
+                let utterance = new SpeechSynthesisUtterance(textToRead);
+                utterance.lang = "en-US";
+                utterance.rate = 1;
+                utterance.pitch = 1;
+                utterance.volume = 1;
                 window.speechSynthesis.speak(utterance);
             }
         </script>
-        
-        
+
     </div>
 
-    <div style="font-size: 25px; font-weight: bold; text-align: center; margin-top: 20px; margin-bottom: 30px;">HOW TO USE MINEYES</div>
+    <div style="font-size: 25px; font-weight: bold; text-align: center; margin-top: 20px; margin-bottom: 30px;">HOW TO
+        USE MINEYES</div>
 
     <div class="tutorial-container">
-        <div class="tutorial"><b>AutoCorrection Textbox:</b> Type text and it will <b>automatically correct</b> the last word.</div>
-        <div class="tutorial"><b>Command Search:</b> Type commands like <b>"YouTube search"</b>, <b>"Google search"</b>, <b>"Mail"</b>, or <b>"Facebook search"</b> followed by your query to perform the respective actions.</div>
-        <div class="tutorial"><b>Switching Between Features:</b> Press <b>Ctrl + M</b> to toggle between autocorrection and voiceover modes.</div>
+        <div class="tutorial"><b>AutoCorrection Textbox:</b> Type text and it will <b>automatically correct</b> the last
+            word.</div>
+        <div class="tutorial"><b>Command Search:</b> Type commands like <b>"YouTube search"</b>, <b>"Google search"</b>,
+            <b>"Mail"</b>, or <b>"Facebook search"</b> followed by your query to perform the respective actions.
+        </div>
+        <div class="tutorial"><b>Switching Between Features:</b> Press <b>Ctrl + M</b> to toggle between autocorrection
+            and voiceover modes.</div>
         <div class="tutorial"><b>VoiceOver:</b> Press <b>Ctrl + Shift + L</b> to hear the last typed text.</div>
     </div>
 
-    <div style="display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 10px; background-color: #f0f0f0; border-top: 1px solid #ccc; font-size: 12px;">
-        <img src="{{ url_for('static', filename='images/small_logo.png') }}" alt="Copyright-logo" style="width: auto; height: 50px; margin-bottom: 35px; margin-top: 25px; margin-left: 20px">
-        <div style="font-size: 15px; color: #555; margin-bottom: 20px; margin-left: 20px">© Copyright 2024, All Rights Reserved by Wiables Project</div>
+    <div
+        style="display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 10px; background-color: #f0f0f0; border-top: 1px solid #ccc; font-size: 12px;">
+        <img src="{{ url_for('static', filename='images/small_logo.png') }}" alt="Copyright-logo"
+            style="width: auto; height: 50px; margin-bottom: 35px; margin-top: 25px; margin-left: 20px">
+        <div style="font-size: 15px; color: #555; margin-bottom: 20px; margin-left: 20px">© Copyright 2024, All Rights
+            Reserved by Wiables Project</div>
     </div>
 
 </body>
