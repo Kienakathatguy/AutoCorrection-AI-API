@@ -1,42 +1,43 @@
 from flask import Flask, request, jsonify, render_template
 import os
 import requests
-from symspellpy.symspellpy import SymSpell, Verbosity
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize SymSpell
-def initialize_symspell():
-    sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-    dictionary_path = "Resources/frequency_dictionary_en.txt"
-    if os.path.exists(dictionary_path):
-        sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
-    else:
-        raise FileNotFoundError(f"Dictionary file not found at {dictionary_path}")
-    return sym_spell
-
-sym_spell = initialize_symspell()
-
-# Correct the last word in the text
-def autocorrect_last_word(sym_spell, input_text):
+# Function to correct text using LanguageTool API
+def correct_text(input_text):
     if not input_text.strip():
         return input_text
 
-    words = input_text.split()
-    last_word = words[-1] if words else ""
-    suggestions = sym_spell.lookup(last_word, Verbosity.CLOSEST, max_edit_distance=2)
-    if suggestions:
-        words[-1] = suggestions[0].term
-    return " ".join(words)
+    url = "https://api.languagetool.org/v2/check"
+    data = {"text": input_text, "language": "en-US"}
 
-# Backend route for real-time autocorrection
+    try:
+        response = requests.post(url, data=data)
+        response.raise_for_status()
+        result = response.json()
+
+        corrected_text = input_text
+        for match in reversed(result.get("matches", [])):  # Reverse to prevent offset issues
+            offset = match["context"]["offset"]
+            length = match["context"]["length"]
+            replacement = match["replacements"][0]["value"] if match["replacements"] else corrected_text[offset:offset+length]
+            corrected_text = corrected_text[:offset] + replacement + corrected_text[offset+length:]
+
+        return corrected_text
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}")
+        return input_text  # Return original text if correction fails
+
+# API route for real-time autocorrection
 @app.route('/realtime_autocorrect', methods=['POST'])
 def realtime_autocorrect():
-    data = request.json  # Request data coming from frontend
+    data = request.json
     input_text = data.get("text", "")
-    corrected_text = autocorrect_last_word(sym_spell, input_text)
+    corrected_text = correct_text(input_text)
     return jsonify({"corrected_text": corrected_text})
 
 # Backend route to fetch weather data

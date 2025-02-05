@@ -149,63 +149,84 @@
                 }
             });
 
+            let lastCorrectionText = ""; // Store last correction request text
+            let correctionInProgress = false; // Flag to track correction status
             let debounceTimeout;
 
-            // Handle input based on the current mode
             function handleInput(event) {
-                const inputText = document.getElementById('combined_input').value;
+                const textarea = document.getElementById('combined_input');
+                const inputText = textarea.value;
 
                 // Handle autocorrection when the mode is "autocorrection" and spacebar is pressed
                 if (currentMode === "autocorrection" && event.key === " ") {
-                    event.preventDefault();  // Prevent the default space behavior
+                    event.preventDefault(); // Prevent default space behavior
+                    textarea.value += " "; // Manually insert space
 
-                    // Manually add a space without losing existing text
-                    const updatedText = inputText + " "; // Append a space at the end
-                    document.getElementById('combined_input').value = updatedText; // Update textarea with space
-
-                    // Clear the previous timeout (if any) to reset the debounce
+                    // Clear previous timeout (if any)
                     clearTimeout(debounceTimeout);
 
-                    // Set a new debounce timeout with a shorter delay (150ms)
+                    // Set a shorter debounce time for faster response
                     debounceTimeout = setTimeout(() => {
-                        fetchLanguageToolCorrection(updatedText);  // Trigger LanguageTool API call after a brief delay
-                    }, 150); // Reduce delay to 150ms for faster correction
+                        if (!correctionInProgress) {
+                            fetchLanguageToolCorrection(inputText);
+                        }
+                    }, 100); // Reduced delay to 100ms
                 }
 
-                // Handle commands when Ctrl + Enter is pressed
+                // Handle command execution when the mode is "command" and Ctrl + Enter is pressed
                 if (currentMode === "command" && event.ctrlKey && event.key === "Enter") {
                     event.preventDefault(); // Prevent the default action (like opening in a new tab)
                     handleCommand(inputText.trim());
                 }
             }
 
-            // Function to fetch corrections using LanguageTool API
+
             function fetchLanguageToolCorrection(text) {
+                if (text === lastCorrectionText) return; // Prevent redundant requests
+                correctionInProgress = true;
+                lastCorrectionText = text; // Store current request text
+
                 fetch('https://api.languagetool.org/v2/check', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: new URLSearchParams({
-                        text: text,
-                        language: 'en-US',
-                    }),
+                    body: new URLSearchParams({ text: text, language: 'en-US' }),
                 })
                     .then(response => response.json())
                     .then(data => {
                         let correctedText = text;
                         if (data.matches && data.matches.length > 0) {
-                            // Apply the first suggestion
-                            correctedText = data.matches.reduce((acc, match) => {
-                                return acc.replace(match.context.text.slice(match.context.offset, match.context.offset + match.context.length), match.replacements[0].value);
-                            }, text);
+                            data.matches.forEach(match => {
+                                let wordToReplace = match.context.text.slice(match.context.offset, match.context.offset + match.context.length);
+                                let replacement = match.replacements[0]?.value || wordToReplace;
+
+                                // Ensure that the replacement doesn't affect spaces
+                                if (replacement !== wordToReplace) {
+                                    correctedText = correctedText.substring(0, match.context.offset) +
+                                        replacement +
+                                        correctedText.substring(match.context.offset + match.context.length);
+                                }
+                            });
                         }
-                        // Update the textarea with the corrected text
-                        // Ensure that the input field text is updated without deleting anything unexpectedly
-                        document.getElementById('combined_input').value = correctedText;
+
+                        const textarea = document.getElementById('combined_input');
+
+                        // Only apply correction if no new text has been added since request
+                        if (textarea.value.trim() === lastCorrectionText.trim()) {
+                            let cursorPosition = textarea.selectionStart;
+                            textarea.value = correctedText;
+                            textarea.selectionStart = textarea.selectionEnd = cursorPosition;
+                        }
+
+                        correctionInProgress = false;
                     })
-                    .catch(error => console.error('Error:', error));
+                    .catch(error => {
+                        console.error('Error:', error);
+                        correctionInProgress = false;
+                    });
             }
+
 
             function handleCommand(inputText) {
                 let command = inputText.toLowerCase();
