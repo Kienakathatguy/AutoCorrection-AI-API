@@ -128,13 +128,15 @@
         <div id="notification" class="notification"></div>
 
         <script>
-            let currentMode = "autocorrection"; // Default mode
+            let currentMode = "autocorrection";
+            let lastCorrectionText = "";
+            let correctionInProgress = false;
+            let debounceTimeout;
 
             function notifyModeChange(mode) {
-                const notificationElement = document.getElementById('notification');
                 const message = `Mode switched to: ${mode.toUpperCase()} mode.`;
-                notificationElement.innerText = message;
-                alert(message); // Screen reader announcement
+                document.getElementById('notification').innerText = message;
+                alert(message);
             }
 
             document.addEventListener("keydown", (event) => {
@@ -149,82 +151,57 @@
                 }
             });
 
-            let lastCorrectionText = ""; // Store last correction request text
-            let correctionInProgress = false; // Flag to track correction status
-            let debounceTimeout;
-
             function handleInput(event) {
                 const textarea = document.getElementById('combined_input');
                 const inputText = textarea.value;
 
-                // Handle autocorrection when the mode is "autocorrection" and spacebar is pressed
+                // **AutoCorrect When Space is Pressed (Only Last Word)**
                 if (currentMode === "autocorrection" && event.key === " ") {
-                    event.preventDefault(); // Prevent default space behavior
-                    textarea.value += " "; // Manually insert space
-
-                    // Clear previous timeout (if any)
+                    event.preventDefault();
+                    textarea.value += " ";
                     clearTimeout(debounceTimeout);
-
-                    // Set a shorter debounce time for faster response
                     debounceTimeout = setTimeout(() => {
                         if (!correctionInProgress) {
                             fetchLanguageToolCorrection(inputText);
                         }
-                    }, 100); // Reduced delay to 100ms
+                    }, 100);
                 }
 
-                // Handle command execution when the mode is "command" and Ctrl + Enter is pressed
+                // **Grammar Check After a Full Sentence (Period Pressed)**
+                if (currentMode === "autocorrection" && event.key === ".") {
+                    event.preventDefault();
+                    textarea.value += ".";
+                    setTimeout(() => {
+                        fetchGrammarCorrection(inputText);
+                    }, 200);
+                }
+
+                // **Command Mode Execution (CTRL + ENTER)**
                 if (currentMode === "command" && event.ctrlKey && event.key === "Enter") {
-                    event.preventDefault(); // Prevent the default action (like opening in a new tab)
+                    event.preventDefault();
                     handleCommand(inputText.trim());
                 }
             }
 
-
             function fetchLanguageToolCorrection(text) {
-                if (text === lastCorrectionText) return; // Prevent redundant requests
+                if (text === lastCorrectionText) return;
                 correctionInProgress = true;
-                lastCorrectionText = text; // Store current request text
+                lastCorrectionText = text;
 
-                fetch('https://api.languagetool.org/v2/check', {
+                fetch('/realtime_autocorrect', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({ text: text, language: 'en-US' }),
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
                 })
                     .then(response => response.json())
                     .then(data => {
-                        let correctedText = text;
-                        if (data.matches && data.matches.length > 0) {
-                            data.matches.forEach(match => {
-                                let wordToReplace = match.context.text.slice(match.context.offset, match.context.offset + match.context.length);
-                                let replacement = match.replacements[0]?.value || wordToReplace;
-
-                                // Ensure that the replacement doesn't affect spaces
-                                if (replacement !== wordToReplace) {
-                                    correctedText = correctedText.substring(0, match.context.offset) +
-                                        replacement +
-                                        correctedText.substring(match.context.offset + match.context.length);
-                                }
-                            });
-                        }
-
                         const textarea = document.getElementById('combined_input');
-
-                        // Only apply correction if no new text has been added since request
                         if (textarea.value.trim() === lastCorrectionText.trim()) {
-                            let cursorPosition = textarea.selectionStart;
-                            textarea.value = correctedText;
-                            textarea.selectionStart = textarea.selectionEnd = cursorPosition;
+                            textarea.value = data.corrected_text;
                         }
-
                         correctionInProgress = false;
                     })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        correctionInProgress = false;
-                    });
+                    .catch(() => correctionInProgress = false);
             }
 
 
