@@ -129,9 +129,8 @@
 
         <script>
             let currentMode = "autocorrection";
-            let lastCorrectionText = "";
-            let correctionInProgress = false;
-            let debounceTimeout;
+            let lastText = "";
+            let lastInputTime = Date.now(); // Track last time text was entered
 
             function notifyModeChange(mode) {
                 const message = `Mode switched to: ${mode.toUpperCase()} mode.`;
@@ -149,31 +148,26 @@
                 if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "l") {
                     voiceover();
                 }
+
+                if (event.ctrlKey && event.key.toLowerCase() === "z") {
+                    document.getElementById('textInput').value = lastText;
+                }
             });
 
             function handleInput(event) {
                 const textarea = document.getElementById('combined_input');
                 const inputText = textarea.value;
 
-                // **AutoCorrect When Space is Pressed (Only Last Word)**
-                if (currentMode === "autocorrection" && event.key === " ") {
-                    event.preventDefault();
-                    textarea.value += " ";
-                    clearTimeout(debounceTimeout);
-                    debounceTimeout = setTimeout(() => {
-                        if (!correctionInProgress) {
-                            fetchLanguageToolCorrection(inputText);
-                        }
-                    }, 100);
-                }
-
                 // **Grammar Check After a Full Sentence (Period Pressed)**
                 if (currentMode === "autocorrection" && event.key === ".") {
                     event.preventDefault();
                     textarea.value += ".";
-                    setTimeout(() => {
-                        fetchGrammarCorrection(inputText);
-                    }, 200);
+                    const currentTime = Date.now();
+                    if (currentTime - lastInputTime > 500) { // If time between keystrokes is significant
+                        setTimeout(() => {
+                            correctText();
+                        }, 100);
+                    }
                 }
 
                 // **Command Mode Execution (CTRL + ENTER)**
@@ -183,25 +177,22 @@
                 }
             }
 
-            function fetchLanguageToolCorrection(text) {
-                if (text === lastCorrectionText) return;
-                correctionInProgress = true;
-                lastCorrectionText = text;
-
-                fetch('/realtime_autocorrect', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        const textarea = document.getElementById('combined_input');
-                        if (textarea.value.trim() === lastCorrectionText.trim()) {
-                            textarea.value = data.corrected_text;
-                        }
-                        correctionInProgress = false;
+            function correctText() {
+                let text = document.getElementById('combined_input').value;
+                if (text !== lastText) {  // Only correct if the text has changed
+                    fetch('/correct_text', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text })
                     })
-                    .catch(() => correctionInProgress = false);
+                        .then(response => response.json())
+                        .then(data => {
+                            lastText = document.getElementById('combined_input').value;
+                            document.getElementById('combined_input').value = data.corrected_text;
+                            document.getElementById('notification').innerText = "Text corrected successfully!";
+                        })
+                        .catch(() => document.getElementById('notification').innerText = "Error correcting text.");
+                }
             }
 
 
