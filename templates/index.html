@@ -132,6 +132,7 @@
             let lastText = "";
             let lastInputTime = Date.now(); // Track last time text was entered
             let correcting = false; // Flag to check if we are already correcting
+            let autocorrectEnabled = true;  // Flag to enable or disable autocorrection
 
             function notifyModeChange(mode) {
                 const message = `Mode switched to: ${mode.toUpperCase()} mode.`;
@@ -153,6 +154,11 @@
                 if (event.ctrlKey && event.key.toLowerCase() === "z") {
                     document.getElementById('combined_input').value = lastText;
                 }
+
+                if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "t") {
+                    event.preventDefault();
+                    toggleAutocorrection();
+                }
             });
 
             function handleInput(event) {
@@ -160,7 +166,7 @@
                 const inputText = textarea.value;
 
                 // **Grammar Check After a Full Sentence (Period Pressed)**
-                if (currentMode === "autocorrection" && event.key === ".") {
+                if (currentMode === "autocorrection" && autocorrectEnabled && event.key === ".") {
                     event.preventDefault();
                     textarea.value += ".";
                     const currentTime = Date.now();
@@ -179,11 +185,16 @@
                 }
             }
 
+            function toggleAutocorrection() {
+                autocorrectEnabled = !autocorrectEnabled;
+                const status = autocorrectEnabled ? "enabled" : "disabled";
+                alert(`Autocorrection is now ${status}.`);
+            }
+
             function correctText() {
                 let text = document.getElementById('combined_input').value;
                 if (text !== lastText) {  // Only correct if the text has changed
                     const textarea = document.getElementById('combined_input');
-                    const cursorPosition = textarea.selectionStart; // Remember the cursor position    
 
                     fetch('/correct_text', {
                         method: 'POST',
@@ -194,7 +205,6 @@
                         .then(data => {
                             lastText = document.getElementById('combined_input').value;
                             const correctedText = data.corrected_text;
-                            const cursorPosition = document.getElementById('combined_input').selectionStart; // Remember the cursor position
 
                             document.getElementById('combined_input').value = correctedText;
                             document.getElementById('notification').innerText = "Text corrected successfully!";
