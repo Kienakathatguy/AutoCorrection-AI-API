@@ -1,6 +1,9 @@
-# Install Java in Render
-curl -fsSL https://adoptium.net/releases.html | grep -oP 'https://.*?OpenJDK.*?x64_Linux.tar.gz' | head -1 | xargs curl -O
-tar -xzf OpenJDK*.tar.gz
-export PATH=$PWD/jdk/bin:$PATH
+#!/usr/bin/env bash
+
+# Install Java
+apt-get update && apt-get install -y openjdk-17-jdk
+
+# Verify Java installation
+java -version
 
 pip install -r requirements.txt
