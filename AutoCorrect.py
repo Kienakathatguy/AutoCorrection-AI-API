@@ -25,7 +25,7 @@ last_request_time = 0  # Timestamp for last API call
 nlp = spacy.load("en_core_web_sm")
 
 # Initialize LanguageTool
-tool = language_tool_python.LanguageToolPublicAPI('en-US')
+tool = language_tool_python.LanguageToolAPI('en-US')
 
 # Initialize NLTK Lemmatizer
 lemmatizer = WordNetLemmatizer()
